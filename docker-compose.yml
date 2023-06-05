@@ -8,6 +8,9 @@ services:
       - rabbitmq
     environment:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
   rabbitmq:
     image: "rabbitmq:3-management"
     ports:

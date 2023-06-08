@@ -10,9 +10,14 @@ services:
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - user-code-volume:/app/tmp/code
+
 
   rabbitmq:
     image: "rabbitmq:3-management"
     ports:
       - "15672:15672"
       - "5672:5672"
+
+volumes:
+  user-code-volume:

@@ -1,5 +1,6 @@
 const amqp = require("amqplib");
 const { uuid } = require("uuidv4");
+const runCode = require('./CodeRunner');
 
 async function intialiseRabbitMQ(queue_name, reply_queue, retries = 0) {
   let map = new Map();
@@ -11,7 +12,7 @@ async function intialiseRabbitMQ(queue_name, reply_queue, retries = 0) {
     await channel.assertQueue(queue_name, { durable: false });
     await channel.assertQueue(reply_queue, { durable: false });
 
-    // MOCK PROCESSING THE JOBS IN QUEUE
+    // PROCESSING THE JOBS IN QUEUE
     channel.consume(
       queue_name,
       async (message_received) => {
@@ -19,8 +20,18 @@ async function intialiseRabbitMQ(queue_name, reply_queue, retries = 0) {
         console.log(
           `[PROCESSING JOB QUEUE] Received in queue -:-:-> ${message_received.content.toString()}`
         );
-        await wait(2)
-        channel.sendToQueue(reply_queue, Buffer.from(message_received.content.toString()), {
+        let codeToRun = message_received.content.toString();
+        let result;
+        try {
+            result = await runCode(codeToRun);
+        } catch (err) {
+            console.log(err);
+            result = err.message
+        }
+
+        console.log(`[PROCESSING JOB QUEUE] RESULT: ${result}`);
+
+        channel.sendToQueue(reply_queue, Buffer.from(result), {
             correlationId: message_corr_id,
           });
       }
@@ -34,7 +45,6 @@ async function intialiseRabbitMQ(queue_name, reply_queue, retries = 0) {
           console.log(
             `[REPLYQUEUE] Received in queue -:-:-> ${message_received.content.toString()}`
           );
-          await wait(2)
           map.get(message_corr_id).resolve(message_received.content.toString())
         }
       );
@@ -69,15 +79,14 @@ async function intialiseRabbitMQ(queue_name, reply_queue, retries = 0) {
       return new Promise(async (resolve, reject) => {
         try {
           let corrId = uuid();
-          await channel.assertQueue(`${queue_name}-${corrId}`, { durable: false });
+          await channel.assertQueue(queue_name, { durable: false });
           await channel.assertQueue(reply_queue, { durable: false });
-          channel.sendToQueue(`${queue_name}-${corrId}`, Buffer.from(task), {
+          channel.sendToQueue(queue_name, Buffer.from(task), {
             replyTo: reply_queue,
             correlationId: corrId,
           });
           map.set(corrId, { resolve, reject });
           console.log(" [ExecuteTask] Sent %s", task);
-          // console.log(map.keys())
         } catch (err) {
           reject(err);
         }
